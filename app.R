@@ -93,7 +93,7 @@ df_population <- df_population %>% select(Code, Name, Geography1, `All ages`) %>
 # Join to the population data for each local authority
 df_cases <- df_cases %>% left_join(df_population, by = c("code" = "code"), suffix = c("", "_population"))
 
-# And calculate a rolling mean number of cases per 100k population
+# And calculate a rolling number of cases per 100k population for some duration, I thought a week is best
 cumlag <- 7
 df_cases <- df_cases %>% arrange(code, date) %>% group_by(code) %>% mutate(cumlag = dplyr::lag(cumulative, n = cumlag, default = NA)) %>% arrange(code, desc(date)) %>% ungroup()
 df_cases <- df_cases %>% mutate(rollsum = cumulative - cumlag)
