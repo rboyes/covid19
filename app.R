@@ -151,8 +151,8 @@ server <- function(input, output) {
         df_plot %>% 
             ggplot(aes(x = date, y = rollrate100k, group = name, color = name)) + 
             geom_line() +
-            labs(x = "Date", y = "Rolling positives in last seven days per 100k population", color = "Local authority\n") + 
-            scale_x_date(date_labels = "%b %Y")        
+            labs(x = "Date", y = "Rolling positives in last seven days per 100k", color = "Local authority\n") + 
+            scale_x_date(date_labels = "%b %Y") + theme(text = element_text(size=14))
     })
 }
 
