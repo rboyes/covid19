@@ -14,6 +14,8 @@ library(httr)
 library(lubridate)
 library(tidyverse)
 
+library(DT)
+
 #' Extracts paginated data by requesting all of the pages
 #' and combining the results.
 #'
@@ -32,7 +34,6 @@ get_paginated_data <- function (filters, structure) {
     current_page <- 1
     
     repeat {
-        print(paste("Retrieving page ", current_page))
         httr::GET(
             url   = endpoint,
             query = list(
@@ -40,7 +41,7 @@ get_paginated_data <- function (filters, structure) {
                 structure = jsonlite::toJSON(structure, auto_unbox = TRUE),
                 page      = current_page
             ),
-            timeout(10)
+            timeout(30)
         ) -> response
         
         # Handle errors:
@@ -137,7 +138,7 @@ ui <- fluidPage(
         
         mainPanel(
             plotOutput("rollsumPlot"),
-            tableOutput("rollsumTable")
+            DTOutput("rollsumTable")
         )
     )
 )
@@ -154,24 +155,28 @@ server <- function(input, output) {
             scale_x_date(date_labels = "%b %Y") + theme(text = element_text(size=14))
     })
     
-    output$rollsumTable <- renderTable({
+    output$rollsumTable <- DT::renderDT({
         
         date_endweek <- input$dateRange[2]
         date_startweek <- date_endweek - ddays(7)
-        df_week <- df_cases %>% filter((date > date_startweek) & (date <= date_endweek))
+        df_week <- df_cases %>% filter((date > date_startweek) & (date <= date_endweek)) %>% arrange(name, date)
         
         df_wideweek <- df_week %>% mutate(date = format(date, "%b%d")) %>% pivot_wider(names_from = date, values_from = c("daily"), id_cols = c("name"))
         
         df_endweek <- df_cases %>% filter(date == date_endweek) %>% select(name, rollsum, rollrate100k)
         df_startweek <- df_cases %>% filter(date == date_startweek) %>% select(name, rollsum, rollrate100k)
         
-        df_wideweek <- df_wideweek %>% inner_join(df_endweek, by = "name")
-        df_wideweek <- df_wideweek %>% inner_join(df_startweek, by = "name", suffix = c("", format(date_startweek, "_%b%d"))) %>%
-            arrange(desc(rollrate100k))
+        df_wideweek <- df_wideweek %>% inner_join(df_endweek %>% select(name, rollsum), by = "name")
+        df_wideweek <- df_wideweek %>% inner_join(df_startweek %>% select(name, rollsum), by = "name", suffix = c("", format(date_startweek, "_%b%d")))
+        df_wideweek <- df_wideweek %>% inner_join(df_endweek %>% select(name, rollrate100k), by = "name")
+        df_wideweek <- df_wideweek %>% inner_join(df_startweek %>% select(name, rollrate100k), by = "name", suffix = c("", format(date_startweek, "_%b%d")))
         
         rollrate100k_startweek <- paste("rollrate100k", format(date_startweek, "%b%d"), sep = "_")
-        df_wideweek <- df_wideweek %>% mutate(ratediff = rollrate100k - get(rollrate100k_startweek)) %>% rename("Local authority" = name)
-        return(df_wideweek)
+        df_wideweek <- df_wideweek %>% mutate(ratediff = rollrate100k - get(rollrate100k_startweek)) %>% rename("Local authority" = name) %>% arrange(desc(rollrate100k))
+        dt_wideweek <- datatable(df_wideweek, rownames = FALSE, options = list(pageLength = 50)) %>% 
+            formatRound(columns = c("rollrate100k", rollrate100k_startweek, "ratediff"), digits = 2) %>%
+            formatStyle("ratediff", backgroundColor = styleInterval(c(0.0), c('green', 'red')))
+        return(dt_wideweek)
     })
 }
 
