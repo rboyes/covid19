@@ -111,7 +111,7 @@ df_latest <- df_cases %>% group_by(name) %>% filter(date == last_date) %>% ungro
 top_names <- df_latest %>% top_n(5, rollrate100k) %>% pull(name)
 name_choices <- df_latest %>% pull(name)
 
-subTitleText <- paste("Rolling weekly sum of positive covid cases per 100k population for each local authority in the United Kingdom.",
+subTitleText <- paste("Rolling weekly sum of positive covid tests per 100k population for each local authority in the United Kingdom; tests are recorded by specimen date.",
                       " Note the date filter excludes the last ", testlag, 
                       " days initially, due to data still being reported; change to suit your needs.")
 
@@ -150,7 +150,7 @@ server <- function(input, output) {
             filter((date >= input$dateRange[1]) & (date <= input$dateRange[2]))
         df_plot %>% 
             ggplot(aes(x = date, y = rollrate100k, group = name, color = name)) + 
-            geom_line() +
+            geom_line(size = 1) +
             labs(x = "", y = "Rolling positives in last seven days per 100k", color = "Local authority\n") + 
             scale_x_date(date_labels = "%b %Y") + theme(text = element_text(size=14))
     })
