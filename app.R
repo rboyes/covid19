@@ -32,7 +32,7 @@ get_paginated_data <- function (filters, structure) {
     current_page <- 1
     
     repeat {
-        
+        print(paste("Retrieving page ", current_page))
         httr::GET(
             url   = endpoint,
             query = list(
@@ -94,14 +94,14 @@ df_population <- df_population %>% select(Code, Name, Geography1, `All ages`) %>
 df_cases <- df_cases %>% left_join(df_population, by = c("code" = "code"), suffix = c("", "_population"))
 
 # And calculate a rolling number of cases per 100k population for some duration, I thought a week is best
-cumlag <- 7
-df_cases <- df_cases %>% arrange(code, date) %>% group_by(code) %>% mutate(cumlag = dplyr::lag(cumulative, n = cumlag, default = NA)) %>% arrange(code, desc(date)) %>% ungroup()
+df_cases <- df_cases %>% arrange(code, date) %>% group_by(code) %>% mutate(cumlag = dplyr::lag(cumulative, n = 7, default = NA)) %>% arrange(code, desc(date)) %>% ungroup()
 df_cases <- df_cases %>% mutate(rollsum = cumulative - cumlag)
 df_cases <- df_cases %>% mutate(rollrate100k = 1.0E+5 * rollsum / population)
 
-start_date <- df_cases %>% summarise(min_date = min(date)) %>% pull()
-testing_lag <- 4 # The number of most recent days removed 
-last_date <- today() - ddays(testing_lag)
+start_date <- min(df_cases$date)
+end_date <- max(df_cases$date)
+testlag <- 4 # The number of most recent days removed, due to delays in getting testing results
+last_date <- end_date - ddays(testlag)
 
 # Get the latest figures
 df_latest <- df_cases %>% group_by(name) %>% filter(date == last_date) %>% ungroup()
@@ -111,12 +111,12 @@ top_names <- df_latest %>% top_n(5, rollrate100k) %>% pull(name)
 name_choices <- df_latest %>% pull(name)
 
 subTitleText <- paste("Rolling weekly sum of positive covid cases per 100k population for each local authority in the United Kingdom.",
-                      " Note the date filter excludes the last ", testing_lag, 
+                      " Note the date filter excludes the last ", testlag, 
                       " days initially, due to data still being reported; change to suit your needs.")
 
 # Define UI for application that draws a histogram
 ui <- fluidPage(
-
+    
     # Application title
     titlePanel(h1("Local authority Covid 19 cases",h5(subTitleText)), windowTitle = "UK local authority Covid 19 cases"),
     # Sidebar with a slider input for number of bins 
@@ -132,27 +132,46 @@ ui <- fluidPage(
                            start = start_date,
                            end = last_date,
                            min = start_date,
-                           max = today() - ddays(1))
+                           max = end_date)
         ),
-
-        # Show a plot of the generated distribution
+        
         mainPanel(
-            plotOutput("rollsumPlot")
+            plotOutput("rollsumPlot"),
+            tableOutput("rollsumTable")
         )
     )
 )
 
-# Define server logic required to draw a histogram
 server <- function(input, output) {
-
+    
     output$rollsumPlot <- renderPlot({
         df_plot <- df_cases %>% filter(name %in% input$selectedCodes) %>% 
             filter((date >= input$dateRange[1]) & (date <= input$dateRange[2]))
         df_plot %>% 
             ggplot(aes(x = date, y = rollrate100k, group = name, color = name)) + 
             geom_line() +
-            labs(x = "Date", y = "Rolling positives in last seven days per 100k", color = "Local authority\n") + 
+            labs(x = "", y = "Rolling positives in last seven days per 100k", color = "Local authority\n") + 
             scale_x_date(date_labels = "%b %Y") + theme(text = element_text(size=14))
+    })
+    
+    output$rollsumTable <- renderTable({
+        
+        date_endweek <- input$dateRange[2]
+        date_startweek <- date_endweek - ddays(7)
+        df_week <- df_cases %>% filter((date > date_startweek) & (date <= date_endweek))
+        
+        df_wideweek <- df_week %>% mutate(date = format(date, "%b%d")) %>% pivot_wider(names_from = date, values_from = c("daily"), id_cols = c("name"))
+        
+        df_endweek <- df_cases %>% filter(date == date_endweek) %>% select(name, rollsum, rollrate100k)
+        df_startweek <- df_cases %>% filter(date == date_startweek) %>% select(name, rollsum, rollrate100k)
+        
+        df_wideweek <- df_wideweek %>% inner_join(df_endweek, by = "name")
+        df_wideweek <- df_wideweek %>% inner_join(df_startweek, by = "name", suffix = c("", format(date_startweek, "_%b%d"))) %>%
+            arrange(desc(rollrate100k))
+        
+        rollrate100k_startweek <- paste("rollrate100k", format(date_startweek, "%b%d"), sep = "_")
+        df_wideweek <- df_wideweek %>% mutate(ratediff = rollrate100k - get(rollrate100k_startweek)) %>% rename("Local authority" = name)
+        return(df_wideweek)
     })
 }
 
