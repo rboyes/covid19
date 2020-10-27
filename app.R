@@ -12,6 +12,7 @@ library(shiny)
 library(ggplot2)
 library(httr)
 library(lubridate)
+library(stringr)
 library(tidyverse)
 
 library(DT)
@@ -34,6 +35,7 @@ get_paginated_data <- function (filters, structure) {
     current_page <- 1
     
     repeat {
+        print(str_glue("Getting page {current_page} at time {date()}"))
         httr::GET(
             url   = endpoint,
             query = list(
