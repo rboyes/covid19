@@ -117,12 +117,10 @@ subTitleText <- paste("Rolling weekly sum of positive covid tests per 100k popul
                       " Note the date filter excludes the last ", testlag, 
                       " days initially, due to data still being reported; change to suit your needs.")
 
-# Define UI for application that draws a histogram
 ui <- fluidPage(
     
     # Application title
     titlePanel(h1("Local authority Covid 19 cases",h5(subTitleText)), windowTitle = "UK local authority Covid 19 cases"),
-    # Sidebar with a slider input for number of bins 
     sidebarLayout(
         sidebarPanel(
             selectInput("selectedCodes", 
