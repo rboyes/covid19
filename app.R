@@ -43,7 +43,7 @@ get_paginated_data <- function (filters, structure) {
                 structure = jsonlite::toJSON(structure, auto_unbox = TRUE),
                 page      = current_page
             ),
-            timeout(30)
+            timeout(60)
         ) -> response
         
         # Handle errors:
@@ -71,22 +71,29 @@ get_paginated_data <- function (filters, structure) {
     
 }
 
+# Cache the cases data to the local file system
+cache_fname <- lubridate::now() %>% format("covid19_%d_%m_%Y.rds")
+if(file.exists(cache_fname)) {
+    df_cases <- read_rds(cache_fname)
+} else {
+    # Create filters:
+    query_filters <- c(
+        "areaType=ltla"
+    )
 
-# Create filters:
-query_filters <- c(
-    "areaType=ltla"
-)
+    # Create the structure as a list or a list of lists:
+    query_structure <- list(
+        date       = "date", 
+        name       = "areaName", 
+        code       = "areaCode", 
+        daily      = "newCasesBySpecimenDate",
+        cumulative = "cumCasesBySpecimenDate"
+    )
 
-# Create the structure as a list or a list of lists:
-query_structure <- list(
-    date       = "date", 
-    name       = "areaName", 
-    code       = "areaCode", 
-    daily      = "newCasesBySpecimenDate",
-    cumulative = "cumCasesBySpecimenDate"
-)
-
-df_cases <- get_paginated_data(query_filters, query_structure) %>% as_tibble() %>% mutate(date = as.Date(date))
+    df_cases <- get_paginated_data(query_filters, query_structure) %>% as_tibble() %>% mutate(date = as.Date(date))
+    
+    write_rds(df_cases, cache_fname)
+}
 
 # Population data for local authorities in the UK, available from the ONS: 
 # https://www.ons.gov.uk/peoplepopulationandcommunity/populationandmigration/populationestimates/datasets/populationestimatesforukenglandandwalesscotlandandnorthernireland
