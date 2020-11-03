@@ -87,32 +87,30 @@ query_structure <- list(
     cumulative = "cumCasesBySpecimenDate"
 )
 
-df_cases <- tryCatch({
-    cat(str_glue("Reading file redis_config.yaml"))
+df_cases = tryCatch({
     redis_config <- read.config("redis_config.yaml")
-
     redisEnv <- redisConnect(host = redis_config$host, port = redis_config$port, password = redis_config$password, returnRef = TRUE, timeout = 30)
+    print("Obtained redis connection")
     cache_key <- format(Sys.Date(), "%Y%m%d")
     if(redisExists(cache_key)) {
         data <- redisGet(cache_key)
-    } 
-    else {
+    } else {
         data <- get_paginated_data(query_filters, query_structure)
         redisSet(cache_key, data)
         redisExpire(cache_key, 24*60*60)
     }
-    return(data)
+    data
 },
 error = function(cond) {
     cat(str_glue("Problems with REDIS host {redis_config$host} port {redis_config$port}"), file=stderr())
     data <- get_paginated_data(query_filters, query_structure)
-    return(data)
+    data
 },
 finally = {
     if(exists("redisEnv")) {
         if(exists("con", where = redisEnv)) {
             if(!is.null(redisEnv[['con']])) {
-                redisClose()    
+                redisClose()
             }
         }
     }
