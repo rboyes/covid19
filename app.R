@@ -99,18 +99,18 @@ df_cases = tryCatch({
         redisSet(cache_key, data)
         redisExpire(cache_key, 24*60*60)
     }
-    data
+    data # Don't use return as stuff inside the try bit is not wrapped in a function
 },
 error = function(cond) {
-    cat(str_glue("Problems with REDIS host {redis_config$host} port {redis_config$port}"), file=stderr())
+    cat(str_glue("Problems with REDIS host {redis_config$host} port {redis_config$port} {cond}"), file=stderr())
     data <- get_paginated_data(query_filters, query_structure)
-    data
+    return(data)
 },
 finally = {
     if(exists("redisEnv")) {
         if(exists("con", where = redisEnv)) {
             if(!is.null(redisEnv[['con']])) {
-                redisClose()
+                redisClose(redisEnv)
             }
         }
     }
