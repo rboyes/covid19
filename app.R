@@ -9,11 +9,14 @@
 
 library(shiny)
 
+library(configr)
 library(ggplot2)
 library(httr)
 library(lubridate)
 library(stringr)
 library(tidyverse)
+
+library(rredis)
 
 library(DT)
 
@@ -35,7 +38,7 @@ get_paginated_data <- function (filters, structure) {
     current_page <- 1
     
     repeat {
-        print(str_glue("Getting page {current_page} at time {date()}"))
+        cat(str_glue("Getting page {current_page} at time {date()}"))
         httr::GET(
             url   = endpoint,
             query = list(
@@ -43,7 +46,7 @@ get_paginated_data <- function (filters, structure) {
                 structure = jsonlite::toJSON(structure, auto_unbox = TRUE),
                 page      = current_page
             ),
-            timeout(60)
+            timeout(300)
         ) -> response
         
         # Handle errors:
@@ -66,34 +69,55 @@ get_paginated_data <- function (filters, structure) {
         current_page <- current_page + 1;
         
     }
-    
-    return(results)
-    
+    data <- as_tibble(results) %>% mutate(date = as.Date(date))
+    return(data)
 }
 
-# Cache the cases data to the local file system
-cache_fname <- lubridate::now() %>% format("covid19_%d_%m_%Y.rds")
-if(file.exists(cache_fname)) {
-    df_cases <- read_rds(cache_fname)
-} else {
-    # Create filters:
-    query_filters <- c(
-        "areaType=ltla"
-    )
+# Create filters:
+query_filters <- c(
+    "areaType=ltla"
+)
 
-    # Create the structure as a list or a list of lists:
-    query_structure <- list(
-        date       = "date", 
-        name       = "areaName", 
-        code       = "areaCode", 
-        daily      = "newCasesBySpecimenDate",
-        cumulative = "cumCasesBySpecimenDate"
-    )
+# Create the structure as a list or a list of lists:
+query_structure <- list(
+    date       = "date", 
+    name       = "areaName", 
+    code       = "areaCode", 
+    daily      = "newCasesBySpecimenDate",
+    cumulative = "cumCasesBySpecimenDate"
+)
 
-    df_cases <- get_paginated_data(query_filters, query_structure) %>% as_tibble() %>% mutate(date = as.Date(date))
-    
-    write_rds(df_cases, cache_fname)
-}
+df_cases <- tryCatch({
+    cat(str_glue("Reading file redis_config.yaml"))
+    redis_config <- read.config("redis_config.yaml")
+
+    redisEnv <- redisConnect(host = redis_config$host, port = redis_config$port, password = redis_config$password, returnRef = TRUE, timeout = 30)
+    cache_key <- format(Sys.Date(), "%Y%m%d")
+    if(redisExists(cache_key)) {
+        data <- redisGet(cache_key)
+    } 
+    else {
+        data <- get_paginated_data(query_filters, query_structure)
+        redisSet(cache_key, data)
+        redisExpire(cache_key, 24*60*60)
+    }
+    return(data)
+},
+error = function(cond) {
+    cat(str_glue("Problems with REDIS host {redis_config$host} port {redis_config$port}"), file=stderr())
+    data <- get_paginated_data(query_filters, query_structure)
+    return(data)
+},
+finally = {
+    if(exists("redisEnv")) {
+        if(exists("con", where = redisEnv)) {
+            if(!is.null(redisEnv[['con']])) {
+                redisClose()    
+            }
+        }
+    }
+})
+
 
 # Population data for local authorities in the UK, available from the ONS: 
 # https://www.ons.gov.uk/peoplepopulationandcommunity/populationandmigration/populationestimates/datasets/populationestimatesforukenglandandwalesscotlandandnorthernireland
@@ -179,7 +203,7 @@ server <- function(input, output) {
         df_wideweek <- df_wideweek %>% inner_join(df_startweek %>% select(name, rollrate100k), by = "name", suffix = c("", format(date_startweek, "_%b%d")))
         
         rollrate100k_startweek <- paste("rollrate100k", format(date_startweek, "%b%d"), sep = "_")
-        df_wideweek <- df_wideweek %>% mutate(ratediff = rollrate100k - get(rollrate100k_startweek)) %>% rename("Local authority" = name) %>% arrange(desc(rollrate100k))
+        df_wideweek <- df_wideweek %>% mutate(ratediff = rollrate100k - base::get(rollrate100k_startweek)) %>% rename("Local authority" = name) %>% arrange(desc(rollrate100k))
         dt_wideweek <- datatable(df_wideweek, rownames = FALSE, options = list(pageLength = 50)) %>% 
             formatRound(columns = c("rollrate100k", rollrate100k_startweek, "ratediff"), digits = 2) %>%
             formatStyle("ratediff", backgroundColor = styleInterval(c(0.0), c('green', 'red')))
