@@ -9,14 +9,11 @@
 
 library(shiny)
 
-library(configr)
 library(ggplot2)
 library(httr)
 library(lubridate)
 library(stringr)
 library(tidyverse)
-
-library(rredis)
 
 library(DT)
 
@@ -88,34 +85,15 @@ query_structure <- list(
 )
 
 df_cases = tryCatch({
-    redis_config <- read.config("redis_config.yaml")
-    redisEnv <- redisConnect(host = redis_config$host, port = redis_config$port, password = redis_config$password, returnRef = TRUE, timeout = 30)
-    print("Obtained redis connection")
-    cache_key <- format(Sys.Date(), "%Y%m%d")
-    if(redisExists(cache_key)) {
-        data <- redisGet(cache_key)
-    } else {
-        data <- get_paginated_data(query_filters, query_structure)
-        redisSet(cache_key, data)
-        redisExpire(cache_key, 24*60*60)
-    }
+    csv_url = format(Sys.Date(), "https://adworksingestion.blob.core.windows.net/covid/covid-%d-%m-%Y.csv")
+    data = readr::read_csv(csv_url)
     data # Don't use return as stuff inside the try bit is not wrapped in a function
 },
 error = function(cond) {
-    cat(str_glue("Problems with REDIS host {redis_config$host} port {redis_config$port} {cond}"), file=stderr())
+    cat(str_glue("Data not available at {csv_url}"), file=stderr())
     data <- get_paginated_data(query_filters, query_structure)
     return(data)
-},
-finally = {
-    if(exists("redisEnv")) {
-        if(exists("con", where = redisEnv)) {
-            if(!is.null(redisEnv[['con']])) {
-                redisClose(redisEnv)
-            }
-        }
-    }
 })
-
 
 # Population data for local authorities in the UK, available from the ONS: 
 # https://www.ons.gov.uk/peoplepopulationandcommunity/populationandmigration/populationestimates/datasets/populationestimatesforukenglandandwalesscotlandandnorthernireland
