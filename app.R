@@ -85,7 +85,7 @@ query_structure <- list(
 )
 
 df_cases = tryCatch({
-    csv_url = format(Sys.Date(), "https://adworksingestion.blob.core.windows.net/covid/covid-%d-%m-%Y.csv")
+    csv_url = format(Sys.Date(), "http://150.143.198.112/covid19-data/covid19-%Y-%m-%d.csv")
     data = readr::read_csv(csv_url)
     data # Don't use return as stuff inside the try bit is not wrapped in a function
 },
