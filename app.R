@@ -85,7 +85,7 @@ query_structure <- list(
 )
 
 df_cases = tryCatch({
-    csv_url = format(Sys.Date(), "http://150.143.198.112/covid19-data/covid19-%Y-%m-%d.csv")
+    csv_url = format(Sys.Date(), "http://31.125.158.39/covid19-data/covid19-%Y-%m-%d.csv")
     data = readr::read_csv(csv_url)
     data # Don't use return as stuff inside the try bit is not wrapped in a function
 },
@@ -122,7 +122,8 @@ name_choices <- df_latest %>% pull(name)
 
 subTitleText <- paste("Rolling weekly sum of positive covid tests per 100k population for each local authority in the United Kingdom; tests are recorded by specimen date.",
                       " Note the date filter excludes the last ", testlag, 
-                      " days initially, due to data still being reported; change to suit your needs.")
+                      " days initially, due to data still being reported; change to suit your needs.",
+                      " The local authorities with the highest rolling rates are selected.")
 
 ui <- fluidPage(
     
@@ -144,8 +145,11 @@ ui <- fluidPage(
         ),
         
         mainPanel(
-            plotOutput("rollsumPlot"),
-            DTOutput("rollsumTable")
+            tabsetPanel(
+                type = "tabs",
+                tabPanel("Plot", plotOutput("rollsumPlot")),
+                tabPanel("Table - all", DTOutput("rollsumTable"))
+            )
         )
     )
 )
@@ -166,7 +170,11 @@ server <- function(input, output) {
         
         date_endweek <- input$dateRange[2]
         date_startweek <- date_endweek - ddays(7)
-        df_week <- df_cases %>% filter((date > date_startweek) & (date <= date_endweek)) %>% arrange(name, date)
+        df_week <- df_cases %>% 
+            filter((date > date_startweek) & 
+                   (date <= date_endweek) & 
+                   (name %in% input$selectedCodes)) %>% 
+            arrange(name, date)
         
         df_wideweek <- df_week %>% mutate(date = format(date, "%b%d")) %>% pivot_wider(names_from = date, values_from = c("daily"), id_cols = c("name"))
         
@@ -180,7 +188,7 @@ server <- function(input, output) {
         
         rollrate100k_startweek <- paste("rollrate100k", format(date_startweek, "%b%d"), sep = "_")
         df_wideweek <- df_wideweek %>% mutate(ratediff = rollrate100k - base::get(rollrate100k_startweek)) %>% rename("Local authority" = name) %>% arrange(desc(rollrate100k))
-        dt_wideweek <- datatable(df_wideweek, rownames = FALSE, options = list(pageLength = 50)) %>% 
+        dt_wideweek <- datatable(df_wideweek, rownames = FALSE, options = list(pageLength = 25, searching = FALSE)) %>% 
             formatRound(columns = c("rollrate100k", rollrate100k_startweek, "ratediff"), digits = 2) %>%
             formatStyle("ratediff", backgroundColor = styleInterval(c(0.0), c('green', 'red')))
         return(dt_wideweek)
