@@ -13,13 +13,13 @@ output_csvpath = sys.argv[1]
 output_dirname = os.path.abspath(os.path.dirname(output_csvpath))
 
 if not (os.path.exists(output_dirname) and os.path.isdir(output_dirname)):
-    raise FileExistsError("Output csv directory does not exist or is not a directory")
+    raise FileExistsError(f"Output csv directory {output_dirname} does not exist or is not a directory")
 
 output_logpath = sys.argv[2]
 output_dirname = os.path.abspath(os.path.dirname(output_logpath))
 
 if not (os.path.exists(output_dirname) and os.path.isdir(output_dirname)):
-    raise FileExistsError("Output log directory does not exist or is not a directory")
+    raise FileExistsError(f"Output log directory {output_dirname} does not exist or is not a directory")
 
 start_time = time.time()
 
