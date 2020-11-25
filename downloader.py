@@ -1,7 +1,8 @@
-import json
+from json import dumps
 import os
 import sys
 import datetime
+import pandas as pd
 from uk_covid19 import Cov19API
 
 if(len(sys.argv) != 3):
@@ -23,8 +24,6 @@ if not (os.path.exists(output_dirname) and os.path.isdir(output_dirname)):
 
 start_time = datetime.datetime.now()
 
-filters = ['areaType=ltla']
-
 structure = {
     'date': 'date',
     'name': 'areaName',
@@ -33,9 +32,14 @@ structure = {
     'cumulative': 'cumCasesBySpecimenDate'
 }
 
-downloader = Cov19API(filters=filters, structure=structure)
+dataframes = []
+areatype_filters = ['ltla', 'overview', 'nation']
+for areatype in areatype_filters:
+    downloader = Cov19API(filters= [f"areaType={areatype}"], structure=structure)
+    dataframes.append(downloader.get_dataframe())
 
-csv = downloader.get_csv(save_as=output_csvpath)
+df = pd.concat(dataframes, ignore_index=True)
+df.to_csv(output_csvpath, index=False)
 
 end_time = datetime.datetime.now()
 
@@ -49,6 +53,6 @@ log_data = {
 }
 
 with open(output_logpath, 'w') as json_file:
-    json_file.write(json.dumps(log_data))
+    json_file.write(dumps(log_data))
     
 exit(0)
