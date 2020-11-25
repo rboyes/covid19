@@ -1,7 +1,7 @@
 import json
 import os
 import sys
-import time
+import datetime
 from uk_covid19 import Cov19API
 
 if(len(sys.argv) != 3):
@@ -21,7 +21,7 @@ output_dirname = os.path.abspath(os.path.dirname(output_logpath))
 if not (os.path.exists(output_dirname) and os.path.isdir(output_dirname)):
     raise FileExistsError(f"Output log directory {output_dirname} does not exist or is not a directory")
 
-start_time = time.time()
+start_time = datetime.datetime.now()
 
 filters = ['areaType=ltla']
 
@@ -37,15 +37,16 @@ downloader = Cov19API(filters=filters, structure=structure)
 
 csv = downloader.get_csv(save_as=output_csvpath)
 
-end_time = time.time()
+end_time = datetime.datetime.now()
 
 log_data = {
     'release_timestamp': Cov19API.get_release_timestamp(),
     'last_udpate': downloader.last_update,
     'total_pages': downloader.total_pages,
-    'download_time': end_time - start_time
+    'start_time': str(start_time),
+    'end_time': str(end_time),
+    'download_time': str(end_time - start_time)
 }
-
 
 with open(output_logpath, 'w') as json_file:
     json_file.write(json.dumps(log_data))
