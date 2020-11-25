@@ -1,3 +1,4 @@
+import csv
 from json import dumps
 import os
 import sys
@@ -39,14 +40,12 @@ for areatype in areatype_filters:
     filter_data = downloader.get_json()
     data.extend(filter_data['data'])
     num_pages += filter_data['totalPages']
-    
+
 with open(output_csvpath, 'w') as csv_file:
-    csv_header = ','.join(list(data[0].keys()))
-    csv_file.write(f"{csv_header}\n")
+    csv_writer = csv.writer(csv_file)
+    csv_writer.writerow(list(data[0].keys()))    
     for item in data:
-        entries = [str(x) for x in item.values()]
-        csv_entries = ','.join(entries)
-        csv_file.write(f"{csv_entries}\n")
+        csv_writer.writerow(list(item.values()))
     
 end_time = datetime.datetime.now()
 
