@@ -81,7 +81,7 @@ ui <- fluidPage(
             tabsetPanel(
                 type = "tabs",
                 tabPanel("Plot", plotOutput("rollsumPlot")),
-                tabPanel("Table - all", DTOutput("rollsumTable"))
+                tabPanel("Table", DTOutput("rollsumTable"))
             )
         )
     )
