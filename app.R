@@ -17,83 +17,8 @@ library(tidyverse)
 
 library(DT)
 
-#' Extracts paginated data by requesting all of the pages
-#' and combining the results.
-#'
-#' @param filters    API filters. See the API documentations for 
-#'                   additional information.
-#'                   
-#' @param structure  Structure parameter. See the API documentations 
-#'                   for additional information.
-#'                   
-#' @return list      Comprehensive list of dictionaries containing all 
-#'                   the data for the given ``filter`` and ``structure`.`
-get_paginated_data <- function (filters, structure) {
-    
-    endpoint     <- "https://api.coronavirus.data.gov.uk/v1/data"
-    results      <- list()
-    current_page <- 1
-    
-    repeat {
-        cat(str_glue("Getting page {current_page} at time {date()}"))
-        httr::GET(
-            url   = endpoint,
-            query = list(
-                filters   = paste(filters, collapse = ";"),
-                structure = jsonlite::toJSON(structure, auto_unbox = TRUE),
-                page      = current_page
-            ),
-            timeout(300)
-        ) -> response
-        
-        # Handle errors:
-        if ( response$status_code >= 400 ) {
-            err_msg = httr::http_status(response)
-            stop(err_msg)
-        } else if ( response$status_code == 204 ) {
-            break
-        }
-        
-        # Convert response from binary to JSON:
-        json_text <- content(response, "text")
-        dt        <- jsonlite::fromJSON(json_text)
-        results   <- rbind(results, dt$data)
-        
-        if ( is.null( dt$pagination$`next` ) ){
-            break
-        }
-        
-        current_page <- current_page + 1;
-        
-    }
-    data <- as_tibble(results) %>% mutate(date = as.Date(date))
-    return(data)
-}
-
-# Create filters:
-query_filters <- c(
-    "areaType=ltla"
-)
-
-# Create the structure as a list or a list of lists:
-query_structure <- list(
-    date       = "date", 
-    name       = "areaName", 
-    code       = "areaCode", 
-    daily      = "newCasesBySpecimenDate",
-    cumulative = "cumCasesBySpecimenDate"
-)
-
-df_cases = tryCatch({
-    csv_url = format(Sys.Date(), "http://31.125.158.39/covid19-data/covid19-%Y-%m-%d.csv")
-    data = readr::read_csv(csv_url)
-    data # Don't use return as stuff inside the try bit is not wrapped in a function
-},
-error = function(cond) {
-    cat(str_glue("Data not available at {csv_url}"), file=stderr())
-    data <- get_paginated_data(query_filters, query_structure)
-    return(data)
-})
+csv_url = format(Sys.Date(), "http://31.125.158.39/covid19-data/covid19-%Y-%m-%d.csv")
+df_cases = readr::read_csv(csv_url)
 
 # Population data for local authorities in the UK, available from the ONS: 
 # https://www.ons.gov.uk/peoplepopulationandcommunity/populationandmigration/populationestimates/datasets/populationestimatesforukenglandandwalesscotlandandnorthernireland
@@ -116,9 +41,17 @@ last_date <- end_date - ddays(testlag)
 # Get the latest figures
 df_latest <- df_cases %>% group_by(name) %>% filter(date == last_date) %>% ungroup()
 
+country_names = df_latest %>% filter(geography == 'Country') %>% pull(name)
+
 # What are the top 5 ?
 top_names <- df_latest %>% top_n(5, rollrate100k) %>% pull(name)
+
+# Combine them with the countries
+top_names <- append(top_names, country_names)
+
 name_choices <- df_latest %>% pull(name)
+
+
 
 subTitleText <- paste("Rolling weekly sum of positive covid tests per 100k population for each local authority in the United Kingdom; tests are recorded by specimen date.",
                       " Note the date filter excludes the last ", testlag, 
@@ -148,7 +81,7 @@ ui <- fluidPage(
             tabsetPanel(
                 type = "tabs",
                 tabPanel("Plot", plotOutput("rollsumPlot")),
-                tabPanel("Table - all", DTOutput("rollsumTable"))
+                tabPanel("Table", DTOutput("rollsumTable"))
             )
         )
     )
