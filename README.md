@@ -9,4 +9,4 @@ Uses data from the following sources:
 * Covid case data: https://api.coronavirus.data.gov.uk/v1/data
 * Local authority population data: https://www.ons.gov.uk/peoplepopulationandcommunity/populationandmigration/populationestimates/datasets/populationestimatesforukenglandandwalesscotlandandnorthernireland
 
-Some issues around time taken to start up, primarily due to slow responsiveness of the government data website.
+Some issues around time taken to start up, primarily due to slow responsiveness of the government data website. What I've done as a workaround is run a nightly job on a machine that is then uploaded to a static website.
