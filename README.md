@@ -2,10 +2,9 @@
 
 A Shiny app for the interactive charting of weekly covid rates per 100k for all local authorities in the UK.
 
-App is available at: https://rboyes.shinyapps.io/covid19
+App is available at: https://rboyes.shinyapps.io/covid19:
 
-![Alt text](screengrab.png?raw=true "Application")
-
+![Alt text](screengrab.png?raw=true "Covid19 Shiny application")
 
 Uses data from the following sources:
 
