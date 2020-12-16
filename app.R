@@ -17,7 +17,7 @@ library(tidyverse)
 
 library(DT)
 
-csv_url = format(Sys.Date(), "http://31.125.158.39/covid19-data/covid19-%Y-%m-%d.csv")
+csv_url = format(Sys.Date(), "http://31.125.158.39/covid19-data/covid19-%Y-%m-%d.csv.gz")
 df_cases = readr::read_csv(csv_url)
 
 # Population data for local authorities in the UK, available from the ONS: 
