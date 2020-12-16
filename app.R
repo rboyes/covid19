@@ -89,7 +89,7 @@ ui <- fluidPage(
 
 server <- function(input, output) {
     
-    output$rollsumPlot <- renderPlot({
+    output$rollsumPlot <- renderCachedPlot({
         df_plot <- df_cases %>% filter(name %in% input$selectedCodes) %>% 
             filter((date >= input$dateRange[1]) & (date <= input$dateRange[2]))
         df_plot %>% 
@@ -97,7 +97,7 @@ server <- function(input, output) {
             geom_line(size = 1) +
             labs(x = "", y = "Rolling positives in last seven days per 100k", color = "Local authority\n") + 
             scale_x_date(date_labels = "%b %Y") + theme(text = element_text(size=14))
-    })
+    }, cacheKeyExpr = paste(input$selectedCodes, collapse = '_'))
     
     output$rollsumTable <- DT::renderDT({
         
