@@ -9,8 +9,10 @@
 
 library(shiny)
 
+library(geojsonio)
 library(ggplot2)
 library(httr)
+library(leaflet)
 library(lubridate)
 library(stringr)
 library(tidyverse)
@@ -24,6 +26,9 @@ df_cases = readr::read_csv(csv_url)
 # https://www.ons.gov.uk/peoplepopulationandcommunity/populationandmigration/populationestimates/datasets/populationestimatesforukenglandandwalesscotlandandnorthernireland
 df_population <- readxl::read_xls('ukmidyearestimates20192020ladcodes.xls', sheet = 'MYE2 - Persons', skip = 4)
 df_population <- df_population %>% select(Code, Name, Geography1, `All ages`) %>% rename(code = Code, name = Name, geography = Geography1, population = `All ages`)
+
+# Obtained from https://opendata.arcgis.com/datasets/ae90afc385c04d869bc8cf8890bd1bcd_4.geojson
+uk_lads <- geojsonio::geojson_read('uk_lads.geojson', what = 'sp')
 
 # Join to the population data for each local authority
 df_cases <- df_cases %>% left_join(df_population, by = c("code" = "code"), suffix = c("", "_population"))
@@ -81,7 +86,8 @@ ui <- fluidPage(
             tabsetPanel(
                 type = "tabs",
                 tabPanel("Plot", plotOutput("rollsumPlot")),
-                tabPanel("Table", DTOutput("rollsumTable"))
+                tabPanel("Table", DTOutput("rollsumTable")),
+                tabPanel("Map", leafletOutput("map"))
             )
         )
     )
@@ -125,6 +131,12 @@ server <- function(input, output) {
             formatRound(columns = c("rollrate100k", rollrate100k_startweek, "ratediff"), digits = 2) %>%
             formatStyle("ratediff", backgroundColor = styleInterval(c(0.0), c('green', 'red')))
         return(dt_wideweek)
+    })
+    
+    output$map <- renderLeaflet({
+        leaflet::leaflet() %>% 
+            leaflet::addProviderTiles(provider = providers$OpenStreetMap) %>%
+            leaflet::addPolygons(data = uk_lads, weight = 1)
     })
 }
 
