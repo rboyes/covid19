@@ -136,10 +136,18 @@ server <- function(input, output) {
     output$map <- renderLeaflet({
         leaflet::leaflet() %>% 
             leaflet::addProviderTiles(provider = providers$OpenStreetMap) %>%
-            leaflet::addPolygons(data = uk_lads, 
+            leaflet::addPolygons(data = uk_lads,
                                  weight = 1,
                                  fillColor = "red",
-                                 label = ~lad17nm)
+                                 label = ~lad17nm,
+                                 layerId = ~lad17cd)
+    })
+    
+    observeEvent({input$map_shape_click}, {
+        print("map shape clicked")
+        p <- input$map_shape_click
+        print(p$id)
+        
     })
 }
 
