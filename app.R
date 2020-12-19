@@ -136,7 +136,10 @@ server <- function(input, output) {
     output$map <- renderLeaflet({
         leaflet::leaflet() %>% 
             leaflet::addProviderTiles(provider = providers$OpenStreetMap) %>%
-            leaflet::addPolygons(data = uk_lads, weight = 1)
+            leaflet::addPolygons(data = uk_lads, 
+                                 weight = 1,
+                                 fillColor = "red",
+                                 label = ~lad17nm)
     })
 }
 
