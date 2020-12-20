@@ -93,9 +93,9 @@ ui <- fluidPage(
     )
 )
 
-server <- function(input, output) {
+server <- function(input, output, session) {
     
-    output$rollsumPlot <- renderCachedPlot({
+    output$rollsumPlot <- renderPlot({
         df_plot <- df_cases %>% filter(name %in% input$selectedCodes) %>% 
             filter((date >= input$dateRange[1]) & (date <= input$dateRange[2]))
         df_plot %>% 
@@ -103,7 +103,7 @@ server <- function(input, output) {
             geom_line(size = 1) +
             labs(x = "", y = "Rolling positives in last seven days per 100k", color = "Local authority\n") + 
             scale_x_date(date_labels = "%b %Y") + theme(text = element_text(size=14))
-    }, cacheKeyExpr = paste(input$selectedCodes, collapse = '_'))
+    })
     
     output$rollsumTable <- DT::renderDT({
         
@@ -144,9 +144,11 @@ server <- function(input, output) {
     })
     
     observeEvent({input$map_shape_click}, {
-        print("map shape clicked")
-        p <- input$map_shape_click
-        print(p$id)
+        map_click_data <- input$map_shape_click
+        inputValues = reactiveValuesToList(input)
+        selectedValues = inputValues$selectedCodes
+        map_region_name = df_cases %>% filter(code == map_click_data$id) %>% pull(name)
+        updateSelectInput(session, "selectedCodes", selected = append(selectedValues, map_region_name))
         
     })
 }
