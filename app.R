@@ -134,17 +134,30 @@ server <- function(input, output, session) {
     })
     
     output$map <- renderLeaflet({
+        
+        df_plot = df_cases %>% 
+            filter(date == input$dateRange[2]) %>% 
+            select(code, name, rollrate100k) %>% 
+            mutate(la_rollrate100k = paste(name, " - rollrate/100k = ", sprintf("%4.0f", rollrate100k)))
+        
+        uk_lads = sp::merge(uk_lads, df_plot, by.x="lad17cd", by.y="code")
+        
+        bins <- c(0, 10, 20, 50, 100, 200, 350, 550, 750, 1000, Inf)
+        pal <- colorBin("YlOrRd", domain = uk_lads$rollrate100k, bins = bins)
+        
         leaflet::leaflet() %>% 
-            leaflet::addProviderTiles(provider = providers$OpenStreetMap) %>%
+            leaflet::addProviderTiles(provider = "CartoDB.Positron") %>%
             leaflet::addPolygons(data = uk_lads,
-                                 weight = 1,
-                                 fillColor = "red",
-                                 label = ~lad17nm,
+                                 weight = 0,
+                                 fillColor = ~pal(rollrate100k),
+                                 opacity = 1.0,
+                                 label = ~la_rollrate100k,
                                  layerId = ~lad17cd)
     })
     
     observeEvent({input$map_shape_click}, {
         map_click_data <- input$map_shape_click
+        print(map_click_data)
         inputValues = reactiveValuesToList(input)
         selectedValues = inputValues$selectedCodes
         map_region_name = df_cases %>% filter(code == map_click_data$id) %>% pull(name)
