@@ -137,7 +137,7 @@ server <- function(input, output, session) {
         df_plot = df_cases %>% 
             filter(date == input$dateRange[2]) %>% 
             select(code, name, rollrate100k) %>% 
-            mutate(la_rollrate100k = paste(name, " - rollrate/100k = ", sprintf("%4.0f", rollrate100k)))
+            mutate(la_rollrate100k = sprintf("%s - rollrate/100k: %4.0f", name, rollrate100k))
         
         df_lads_cases = df_lads %>% dplyr::left_join(df_plot, by = c("lad19cd" = "code"))
         
@@ -169,7 +169,6 @@ server <- function(input, output, session) {
         selectedValues = inputValues$selectedCodes
         map_region_name = df_cases %>% filter(code == map_click_data$id) %>% pull(name)
         updateSelectInput(session, "selectedCodes", selected = append(selectedValues, map_region_name))
-        
     })
 }
 
