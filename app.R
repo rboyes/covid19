@@ -9,11 +9,11 @@
 
 library(shiny)
 
-library(geojsonio)
 library(ggplot2)
 library(httr)
 library(leaflet)
 library(lubridate)
+library(sf)
 library(stringr)
 library(tidyverse)
 
@@ -27,8 +27,7 @@ df_cases = readr::read_csv(csv_url)
 df_population <- readxl::read_xls('ukmidyearestimates20192020ladcodes.xls', sheet = 'MYE2 - Persons', skip = 4)
 df_population <- df_population %>% select(Code, Name, Geography1, `All ages`) %>% rename(code = Code, name = Name, geography = Geography1, population = `All ages`)
 
-# Obtained from https://opendata.arcgis.com/datasets/ae90afc385c04d869bc8cf8890bd1bcd_4.geojson
-uk_lads <- geojsonio::geojson_read('uk_lads.geojson', what = 'sp')
+uk_lads = sf::read_sf('Local_Authority_Districts__December_2019__Boundaries_UK_BUC.shp')
 
 # Join to the population data for each local authority
 df_cases <- df_cases %>% left_join(df_population, by = c("code" = "code"), suffix = c("", "_population"))
@@ -140,7 +139,7 @@ server <- function(input, output, session) {
             select(code, name, rollrate100k) %>% 
             mutate(la_rollrate100k = paste(name, " - rollrate/100k = ", sprintf("%4.0f", rollrate100k)))
         
-        uk_lads = sp::merge(uk_lads, df_plot, by.x="lad17cd", by.y="code")
+        uk_lads = uk_lads %>% dplyr::left_join(df_plot, by = c("lad19cd" = "code"))
         
         pal <- colorNumeric(
             palette = "YlGnBu",
@@ -154,7 +153,7 @@ server <- function(input, output, session) {
                                  fillColor = ~pal(rollrate100k),
                                  opacity = 1.0,
                                  label = ~la_rollrate100k,
-                                 layerId = ~lad17cd) %>%
+                                 layerId = ~lad19cd) %>%
             leaflet::addLegend(position = "topright", 
                                title = sprintf("Rollrate/100k as of %s", format(input$dateRange[2], "%d-%m-%y")),
                                pal = pal, 
