@@ -165,7 +165,6 @@ server <- function(input, output, session) {
     
     observeEvent({input$map_shape_click}, {
         map_click_data <- input$map_shape_click
-        print(map_click_data)
         inputValues = reactiveValuesToList(input)
         selectedValues = inputValues$selectedCodes
         map_region_name = df_cases %>% filter(code == map_click_data$id) %>% pull(name)
