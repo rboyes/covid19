@@ -24,10 +24,10 @@ df_cases = readr::read_csv(csv_url)
 
 # Population data for local authorities in the UK, available from the ONS: 
 # https://www.ons.gov.uk/peoplepopulationandcommunity/populationandmigration/populationestimates/datasets/populationestimatesforukenglandandwalesscotlandandnorthernireland
-df_population <- readxl::read_xls('ukmidyearestimates20192020ladcodes.xls', sheet = 'MYE2 - Persons', skip = 4)
+df_population <- readxl::read_xls('ukmidyearestimates20192019ladcodes.xls', sheet = 'MYE2 - Persons', skip = 4)
 df_population <- df_population %>% select(Code, Name, Geography1, `All ages`) %>% rename(code = Code, name = Name, geography = Geography1, population = `All ages`)
 
-uk_lads = sf::read_sf('Local_Authority_Districts__December_2019__Boundaries_UK_BUC.shp')
+df_lads = sf::read_sf('Local_Authority_Districts__December_2019__Boundaries_UK_BUC.shp')
 
 # Join to the population data for each local authority
 df_cases <- df_cases %>% left_join(df_population, by = c("code" = "code"), suffix = c("", "_population"))
@@ -86,7 +86,7 @@ ui <- fluidPage(
                 type = "tabs",
                 tabPanel("Plot", plotOutput("rollsumPlot")),
                 tabPanel("Table", DTOutput("rollsumTable")),
-                tabPanel("Map", leafletOutput("map"))
+                tabPanel("Map", leafletOutput("map", height = 800))
             )
         )
     )
@@ -139,29 +139,28 @@ server <- function(input, output, session) {
             select(code, name, rollrate100k) %>% 
             mutate(la_rollrate100k = paste(name, " - rollrate/100k = ", sprintf("%4.0f", rollrate100k)))
         
-        uk_lads = uk_lads %>% dplyr::left_join(df_plot, by = c("lad19cd" = "code"))
+        df_lads_cases = df_lads %>% dplyr::left_join(df_plot, by = c("lad19cd" = "code"))
+        
+        df_lads_cases = df_lads_cases %>% filter(!is.na(rollrate100k))
         
         pal <- colorNumeric(
             palette = "YlGnBu",
-            domain = uk_lads$rollrate100k
+            domain = df_lads_cases$rollrate100k
         )
         
         leaflet::leaflet() %>% 
+            leaflet::setView(lat = 54.75, lng = -4, zoom = 6) %>%
             leaflet::addProviderTiles(provider = "CartoDB.Positron") %>%
-            leaflet::addPolygons(data = uk_lads,
+            leaflet::addPolygons(data = df_lads_cases,
                                  stroke = FALSE,
                                  fillColor = ~pal(rollrate100k),
                                  opacity = 1.0,
                                  label = ~la_rollrate100k,
                                  layerId = ~lad19cd) %>%
             leaflet::addLegend(position = "topright", 
-                               title = sprintf("Rollrate/100k as of %s", format(input$dateRange[2], "%d-%m-%y")),
+                               title = sprintf("Rollrate/100k - %s", format(input$dateRange[2], "%d-%m-%y")),
                                pal = pal, 
-                               values = uk_lads$rollrate100k)
-
-    
-        
-        
+                               values = df_lads_cases$rollrate100k)
     })
     
     observeEvent({input$map_shape_click}, {
