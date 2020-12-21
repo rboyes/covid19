@@ -142,17 +142,27 @@ server <- function(input, output, session) {
         
         uk_lads = sp::merge(uk_lads, df_plot, by.x="lad17cd", by.y="code")
         
-        bins <- c(0, 10, 20, 50, 100, 200, 350, 550, 750, 1000, Inf)
-        pal <- colorBin("YlOrRd", domain = uk_lads$rollrate100k, bins = bins)
+        pal <- colorNumeric(
+            palette = "YlGnBu",
+            domain = uk_lads$rollrate100k
+        )
         
         leaflet::leaflet() %>% 
             leaflet::addProviderTiles(provider = "CartoDB.Positron") %>%
             leaflet::addPolygons(data = uk_lads,
-                                 weight = 0,
+                                 stroke = FALSE,
                                  fillColor = ~pal(rollrate100k),
                                  opacity = 1.0,
                                  label = ~la_rollrate100k,
-                                 layerId = ~lad17cd)
+                                 layerId = ~lad17cd) %>%
+            leaflet::addLegend(position = "topright", 
+                               title = sprintf("Rollrate/100k as of %s", format(input$dateRange[2], "%d-%m-%y")),
+                               pal = pal, 
+                               values = uk_lads$rollrate100k)
+
+    
+        
+        
     })
     
     observeEvent({input$map_shape_click}, {
