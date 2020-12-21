@@ -154,7 +154,7 @@ server <- function(input, output, session) {
             leaflet::addPolygons(data = df_lads_cases,
                                  stroke = FALSE,
                                  fillColor = ~pal(rollrate100k),
-                                 opacity = 1.0,
+                                 fillOpacity = 0.4,
                                  label = ~la_rollrate100k,
                                  layerId = ~lad19cd) %>%
             leaflet::addLegend(position = "topright", 
