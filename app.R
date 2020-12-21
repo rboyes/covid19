@@ -11,7 +11,9 @@ library(shiny)
 
 library(ggplot2)
 library(httr)
+library(leaflet)
 library(lubridate)
+library(sf)
 library(stringr)
 library(tidyverse)
 
@@ -22,8 +24,10 @@ df_cases = readr::read_csv(csv_url)
 
 # Population data for local authorities in the UK, available from the ONS: 
 # https://www.ons.gov.uk/peoplepopulationandcommunity/populationandmigration/populationestimates/datasets/populationestimatesforukenglandandwalesscotlandandnorthernireland
-df_population <- readxl::read_xls('ukmidyearestimates20192020ladcodes.xls', sheet = 'MYE2 - Persons', skip = 4)
+df_population <- readxl::read_xls('ukmidyearestimates20192019ladcodes.xls', sheet = 'MYE2 - Persons', skip = 4)
 df_population <- df_population %>% select(Code, Name, Geography1, `All ages`) %>% rename(code = Code, name = Name, geography = Geography1, population = `All ages`)
+
+df_lads = sf::read_sf('Local_Authority_Districts__December_2019__Boundaries_UK_BUC.shp')
 
 # Join to the population data for each local authority
 df_cases <- df_cases %>% left_join(df_population, by = c("code" = "code"), suffix = c("", "_population"))
@@ -81,15 +85,16 @@ ui <- fluidPage(
             tabsetPanel(
                 type = "tabs",
                 tabPanel("Plot", plotOutput("rollsumPlot")),
-                tabPanel("Table", DTOutput("rollsumTable"))
+                tabPanel("Table", DTOutput("rollsumTable")),
+                tabPanel("Map", leafletOutput("map", height = 800))
             )
         )
     )
 )
 
-server <- function(input, output) {
+server <- function(input, output, session) {
     
-    output$rollsumPlot <- renderCachedPlot({
+    output$rollsumPlot <- renderPlot({
         df_plot <- df_cases %>% filter(name %in% input$selectedCodes) %>% 
             filter((date >= input$dateRange[1]) & (date <= input$dateRange[2]))
         df_plot %>% 
@@ -97,7 +102,7 @@ server <- function(input, output) {
             geom_line(size = 1) +
             labs(x = "", y = "Rolling positives in last seven days per 100k", color = "Local authority\n") + 
             scale_x_date(date_labels = "%b %Y") + theme(text = element_text(size=14))
-    }, cacheKeyExpr = paste(input$selectedCodes, collapse = '_'))
+    })
     
     output$rollsumTable <- DT::renderDT({
         
@@ -125,6 +130,46 @@ server <- function(input, output) {
             formatRound(columns = c("rollrate100k", rollrate100k_startweek, "ratediff"), digits = 2) %>%
             formatStyle("ratediff", backgroundColor = styleInterval(c(0.0), c('green', 'red')))
         return(dt_wideweek)
+    })
+    
+    output$map <- renderLeaflet({
+        
+        df_plot = df_cases %>% 
+            filter(date == input$dateRange[2]) %>% 
+            select(code, name, rollrate100k) %>% 
+            mutate(la_rollrate100k = paste(name, " - rollrate/100k = ", sprintf("%4.0f", rollrate100k)))
+        
+        df_lads_cases = df_lads %>% dplyr::left_join(df_plot, by = c("lad19cd" = "code"))
+        
+        df_lads_cases = df_lads_cases %>% filter(!is.na(rollrate100k))
+        
+        pal <- colorNumeric(
+            palette = "YlGnBu",
+            domain = df_lads_cases$rollrate100k
+        )
+        
+        leaflet::leaflet() %>% 
+            leaflet::setView(lat = 54.75, lng = -4, zoom = 6) %>%
+            leaflet::addProviderTiles(provider = "CartoDB.Positron") %>%
+            leaflet::addPolygons(data = df_lads_cases,
+                                 stroke = FALSE,
+                                 fillColor = ~pal(rollrate100k),
+                                 opacity = 1.0,
+                                 label = ~la_rollrate100k,
+                                 layerId = ~lad19cd) %>%
+            leaflet::addLegend(position = "topright", 
+                               title = sprintf("Rollrate/100k - %s", format(input$dateRange[2], "%d-%m-%y")),
+                               pal = pal, 
+                               values = df_lads_cases$rollrate100k)
+    })
+    
+    observeEvent({input$map_shape_click}, {
+        map_click_data <- input$map_shape_click
+        inputValues = reactiveValuesToList(input)
+        selectedValues = inputValues$selectedCodes
+        map_region_name = df_cases %>% filter(code == map_click_data$id) %>% pull(name)
+        updateSelectInput(session, "selectedCodes", selected = append(selectedValues, map_region_name))
+        
     })
 }
 
