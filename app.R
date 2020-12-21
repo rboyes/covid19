@@ -84,8 +84,8 @@ ui <- fluidPage(
         mainPanel(
             tabsetPanel(
                 type = "tabs",
-                tabPanel("Plot", plotOutput("rollsumPlot")),
-                tabPanel("Table", DTOutput("rollsumTable")),
+                tabPanel("Plot", plotOutput("rollsumPlot", height = 800)),
+                tabPanel("Table", DTOutput("rollsumTable", height = 800)),
                 tabPanel("Map", leafletOutput("map", height = 800))
             )
         )
