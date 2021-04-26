@@ -11,6 +11,7 @@ library(shiny)
 
 library(ggplot2)
 library(httr)
+library(jsonlite)
 library(leaflet)
 library(lubridate)
 library(sf)
