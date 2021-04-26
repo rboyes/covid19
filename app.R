@@ -19,8 +19,75 @@ library(tidyverse)
 
 library(DT)
 
-csv_url = format(Sys.Date(), "http://31.125.158.39/covid19-data/covid19-%Y-%m-%d.csv.gz")
-df_cases = readr::read_csv(csv_url)
+#' Extracts paginated data by requesting all of the pages
+#' and combining the results.
+#'
+#' @param filters    API filters. See the API documentations for 
+#'                   additional information.
+#'                   
+#' @param structure  Structure parameter. See the API documentations 
+#'                   for additional information.
+#'                   
+#' @return list      Comprehensive list of dictionaries containing all 
+#'                   the data for the given ``filter`` and ``structure`.`
+get_paginated_data <- function (filters, structure) {
+    
+    endpoint     <- "https://api.coronavirus.data.gov.uk/v1/data"
+    results      <- list()
+    current_page <- 1
+    
+    repeat {
+        print(str_glue("Getting page {current_page} at time {date()}"))
+        httr::GET(
+            url   = endpoint,
+            query = list(
+                filters   = paste(filters, collapse = ";"),
+                structure = jsonlite::toJSON(structure, auto_unbox = TRUE),
+                page      = current_page
+            ),
+            timeout(30)
+        ) -> response
+        
+        # Handle errors:
+        if ( response$status_code >= 400 ) {
+            err_msg = httr::http_status(response)
+            stop(err_msg)
+        } else if ( response$status_code == 204 ) {
+            break
+        }
+        
+        # Convert response from binary to JSON:
+        json_text <- content(response, "text")
+        dt        <- jsonlite::fromJSON(json_text)
+        results   <- rbind(results, dt$data)
+        
+        if ( is.null( dt$pagination$`next` ) ){
+            break
+        }
+        
+        current_page <- current_page + 1;
+        
+    }
+    
+    return(results)
+    
+}
+
+# Create filters:
+query_filters <- c(
+    "areaType=ltla"
+)
+
+# Create the structure as a list or a list of lists:
+query_structure <- list(
+    date       = "date", 
+    name       = "areaName", 
+    code       = "areaCode", 
+    daily      = "newCasesBySpecimenDate",
+    cumulative = "cumCasesBySpecimenDate"
+)
+
+df_cases <- get_paginated_data(query_filters, query_structure) %>% as_tibble() %>% mutate(date = as.Date(date))
 
 # Population data for local authorities in the UK, available from the ONS: 
 # https://www.ons.gov.uk/peoplepopulationandcommunity/populationandmigration/populationestimates/datasets/populationestimatesforukenglandandwalesscotlandandnorthernireland
@@ -134,33 +201,48 @@ server <- function(input, output, session) {
     
     output$map <- renderLeaflet({
         
-        df_plot = df_cases %>% 
-            filter(date == input$dateRange[2]) %>% 
-            select(code, name, rollrate100k) %>% 
-            mutate(la_rollrate100k = sprintf("%s - rollrate/100k: %4.0f", name, rollrate100k))
+        mapDate = input$dateRange[2]
         
-        df_lads_cases = df_lads %>% dplyr::left_join(df_plot, by = c("lad19cd" = "code"))
+        dates <- seq(as.Date("2020-09-01"), as.Date("2020-12-15"), by=1)
         
-        df_lads_cases = df_lads_cases %>% filter(!is.na(rollrate100k))
+        for(mapDate in as.list(dates)) {
+            print(mapDate)
+            df_plot = df_cases %>% 
+                filter(date == mapDate) %>% 
+                select(code, name, rollrate100k) %>% 
+                mutate(la_rollrate100k = sprintf("%s - rollrate/100k: %4.0f", name, rollrate100k))
+            
+            df_lads_cases = df_lads %>% 
+                dplyr::left_join(df_plot, by = c("lad19cd" = "code")) %>%
+                filter(!is.na(rollrate100k))
+            
+            bins = c(0, 10, 20, 50, 100, 200, 350, 550, 750, Inf)
+            
+            pal <- colorBin(
+                bins = bins,
+                palette = "YlGnBu",
+                domain = df_lads_cases$rollrate100k
+            )
+            
+            map = leaflet::leaflet() %>% 
+                leaflet::setView(lat = 54.75, lng = -4, zoom = 6) %>%
+                leaflet::addPolygons(data = df_lads_cases,
+                                     stroke = TRUE,
+                                     weight = 1.0,
+                                     fillColor = ~pal(rollrate100k),
+                                     fillOpacity = 1.0,
+                                     label = ~la_rollrate100k,
+                                     layerId = ~lad19cd) %>%
+                leaflet::addLegend(position = "topright", 
+                                   title = sprintf("Rollrate/100k - %s", format(mapDate, "%d-%m-%y")),
+                                   pal = pal, 
+                                   values = df_lads_cases$rollrate100k)
+            #saveWidget(map, sprintf("map-%s.html", format(mapDate, "%y-%m-%d")))
+            Sys.sleep(1)
+            View
+        }
         
-        pal <- colorNumeric(
-            palette = "YlGnBu",
-            domain = df_lads_cases$rollrate100k
-        )
-        
-        leaflet::leaflet() %>% 
-            leaflet::setView(lat = 54.75, lng = -4, zoom = 6) %>%
-            leaflet::addProviderTiles(provider = "CartoDB.Positron") %>%
-            leaflet::addPolygons(data = df_lads_cases,
-                                 stroke = FALSE,
-                                 fillColor = ~pal(rollrate100k),
-                                 fillOpacity = 0.4,
-                                 label = ~la_rollrate100k,
-                                 layerId = ~lad19cd) %>%
-            leaflet::addLegend(position = "topright", 
-                               title = sprintf("Rollrate/100k - %s", format(input$dateRange[2], "%d-%m-%y")),
-                               pal = pal, 
-                               values = df_lads_cases$rollrate100k)
+        return(map)
     })
     
     observeEvent({input$map_shape_click}, {
